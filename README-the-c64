@@ -1,0 +1,29 @@
+So what is this mess mr.threader? 
+
+This is an initial (WIP) effort to reproduce and update the base system for 
+the c64 mini (at least).
+
+To build: 
+Grab the following
+linaro-gcc-4.9 from https://releases.linaro.org/components/toolchain/binaries/4.9-2016.02/arm-linux-gnueabi/
+Kernel from https://github.com/threader/C64Mini-FEL-boot 
+(patched to allow newer uboots, and one spotted bug)
+And I took aim at (currently) 2.31 https://git.linaro.org/toolchain/glibc.git
+
+Copy .config-a20-mali to .config, make sure paths in local.mk 
+and scripts/build_sun7i.sh are correct. Keeping in-line with the suni7 sdk, 
+paths are hardcoded in the scripts, this includes 
+BR2_TOOLCHAIN_EXTERNAL_PATH="/home/thread/dev/sdk/gcc-linaro-4.9-2016.02-x86_64_arm-linux-gnueabi" 
+in the .config. I chose gcc-4.9 due to the kernel, CROSS_COMPILE could be 
+defined for gcc-4.9 to build the kernel, but I'm not there yet.
+Nor am I there with testing the linaro-libc, I want to build linaro-gcc,
+so this should get real fun real fast. 
+
+Once you are pretty sure everythig is in order, execute scripts/build_sun7i.sh
+After some fidgeting, a base system should emerge, this is as of now not 
+a replacement for the stock system, this is a WIP. chroot to it and verify
+everything is in order and experiment away :) 
+Do remember to have a backup though.
+
+A big thank you to 'jj0' for excellent posts and answering some of my oddball
+newbie suni7 questions getting into this! 
