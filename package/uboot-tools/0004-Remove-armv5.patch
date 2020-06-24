@@ -1,0 +1,11 @@
+--- uboot-2017.11/arch/arm/Makefile	2020-06-24 21:44:17.084370482 +0100
++++ uboot-2017.11-org/arch/arm/Makefile	2020-06-24 21:43:31.340368678 +0100
+@@ -17,7 +17,7 @@
+ arch-$(CONFIG_CPU_ARM1136)	=-march=armv5
+ arch-$(CONFIG_CPU_ARM1176)	=-march=armv5t
+ arch-$(CONFIG_CPU_V7)		=$(call cc-option, -march=armv7-a, \
+-				 $(call cc-option, -march=armv7)) #, -march=armv5))
++				 $(call cc-option, -march=armv7, -march=armv5))
+ arch-$(CONFIG_ARM64)		=-march=armv8-a
+ 
+ # On Tegra systems we must build SPL for the armv4 core on the device
