@@ -8,8 +8,22 @@
 # internal toolchain backend.
 
 ifeq ($(BR2_KERNEL_HEADERS_AS_KERNEL),y)
-
+LINUX_HEADERS_CUSTOM_TARBALL = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_TARBALL))
+LINUX_HEADERS_CUSTOM_GIT = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_GIT))
+LINUX_HEADERS_CUSTOM_HG = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_HG))
+LINUX_HEADERS_CUSTOM_SVN = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_SVN))
 LINUX_HEADERS_VERSION = $(call qstrip,$(BR2_LINUX_KERNEL_VERSION))
+LINUX_HEADERS_CUSTOM_TARBALL_LOCATION = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION))
+LINUX_HEADERS_REPO_URL = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_REPO_URL))
+else # ! BR2_KERNEL_HEADERS_AS_KERNEL
+LINUX_HEADERS_CUSTOM_TARBALL = $(call qstrip,$(BR2_KERNEL_HEADERS_CUSTOM_TARBALL))
+LINUX_HEADERS_CUSTOM_GIT = $(call qstrip,$(BR2_KERNEL_HEADERS_CUSTOM_GIT))
+LINUX_HEADERS_CUSTOM_HG =
+LINUX_HEADERS_CUSTOM_SVN =
+LINUX_HEADERS_VERSION = $(call qstrip,$(BR2_DEFAULT_KERNEL_HEADERS))
+LINUX_HEADERS_CUSTOM_TARBALL_LOCATION = $(call qstrip,$(BR2_KERNEL_HEADERS_CUSTOM_TARBALL_LOCATION))
+LINUX_HEADERS_REPO_URL = $(call qstrip,$(BR2_KERNEL_HEADERS_CUSTOM_REPO_URL))
+endif # BR2_KERNEL_HEADERS_AS_KERNEL
 
 # Compute LINUX_HEADERS_SOURCE and LINUX_HEADERS_SITE from the configuration
 ifeq ($(BR2_LINUX_KERNEL_CUSTOM_TARBALL),y)
@@ -30,6 +44,15 @@ LINUX_HEADERS_SITE = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_REPO_URL))
 LINUX_HEADERS_SITE_METHOD = hg
 # use same hg tarball as linux kernel
 LINUX_HEADERS_SOURCE = linux-$(LINUX_HEADERS_VERSION).tar.gz
+else ifeq ($(LINUX_HEADERS_CUSTOM_SVN),y)
+LINUX_HEADERS_SOURCE = linux-$(LINUX_HEADERS_VERSION).tar.gz
+LINUX_HEADERS_SITE = $(LINUX_HEADERS_REPO_URL)
+LINUX_HEADERS_SITE_METHOD = svn
+else ifneq ($(findstring -rc,$(LINUX_HEADERS_VERSION)),)
+# Since 4.12-rc1, -rc kernels are generated from cgit. This also works for
+# older -rc kernels.
+LINUX_HEADERS_SOURCE = linux-$(LINUX_HEADERS_VERSION).tar.gz
+LINUX_HEADERS_SITE = https://git.kernel.org/torvalds/t
 else
 LINUX_HEADERS_SOURCE = linux-$(LINUX_HEADERS_VERSION).tar.xz
 ifeq ($(BR2_LINUX_KERNEL_CUSTOM_VERSION),y)
@@ -51,7 +74,11 @@ LINUX_HEADERS_SITE := $(LINUX_HEADERS_SITE)/testing
 endif # -rc
 endif
 
-LINUX_HEADERS_PATCHES = $(call qstrip,$(BR2_LINUX_KERNEL_PATCH))
+# Apply any necessary patches if we are using the headers from a kernel
+# build.
+ifeq ($(BR2_KERNEL_HEADERS_AS_KERNEL),y)
+LINUX_HEADERS_PATCHES = $(call qstrip,$(BR2_LINUX_KERNEL_PATCH)) \
+	$(wildcard $(addsuffix /linux,$(call qstrip,$(BR2_GLOBAL_PATCH_DIR))))
 
 # We rely on the generic package infrastructure to download and apply
 # remote patches (downloaded from ftp, http or https). For local
@@ -70,6 +97,7 @@ define LINUX_HEADERS_APPLY_LOCAL_PATCHES
 endef
 
 LINUX_HEADERS_POST_PATCH_HOOKS += LINUX_HEADERS_APPLY_LOCAL_PATCHES
+endif # BR2_KERNEL_HEADERS_AS_KERNEL
 
 else # ! BR2_KERNEL_HEADERS_AS_KERNEL
 
@@ -81,6 +109,11 @@ LINUX_HEADERS_SITE = $(BR2_KERNEL_MIRROR)/linux/kernel/v3.x
 else ifeq ($(findstring x4.,x$(LINUX_HEADERS_VERSION)),x4.)
 LINUX_HEADERS_SITE = $(BR2_KERNEL_MIRROR)/linux/kernel/v4.x
 endif
+# Skip hash checking for custom kernel headers.
+ifeq ($(BR2_KERNEL_HEADERS_VERSION)$(BR2_KERNEL_HEADERS_CUSTOM_TARBALL)$(BR2_KERNEL_HEADERS_CUSTOM_GIT),y)
+BR_NO_CHECK_HASH_FOR += $(LINUX_HEADERS_SOURCE)
+endif
+
 LINUX_HEADERS_SOURCE = linux-$(LINUX_HEADERS_VERSION).tar.xz
 
 endif # ! BR2_KERNEL_HEADERS_AS_KERNEL
@@ -125,11 +158,15 @@ define LINUX_HEADERS_INSTALL_STAGING_CMDS
 			headers_install)
 endef
 
-ifeq ($(BR2_KERNEL_HEADERS_VERSION)$(BR2_KERNEL_HEADERS_AS_KERNEL),y)
+ifeq ($(BR2_KERNEL_HEADERS_VERSION)$(BR2_KERNEL_HEADERS_AS_KERNEL)$(BR2_KERNEL_HEADERS_CUSTOM_TARBALL)$(BR2_KERNEL_HEADERS_CUSTOM_GIT),y)
+# In this case, we must always do a 'loose' test, because they are all
+# custom versions which may be later than what we know right now.
 define LINUX_HEADERS_CHECK_VERSION
 	$(call check_kernel_headers_version,\
+		$(BUILD_DIR),\
 		$(STAGING_DIR),\
-		$(call qstrip,$(BR2_TOOLCHAIN_HEADERS_AT_LEAST)))
+		$(call qstrip,$(BR2_TOOLCHAIN_HEADERS_AT_LEAST)),\
+		loose)
 endef
 LINUX_HEADERS_POST_INSTALL_STAGING_HOOKS += LINUX_HEADERS_CHECK_VERSION
 endif

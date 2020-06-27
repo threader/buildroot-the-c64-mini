@@ -80,9 +80,53 @@ choice
 		bool "Linux 4.8.x kernel headers"
 		select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_8
 
-	config BR2_KERNEL_HEADERS_VERSION
-		bool "Manually specified Linux version"
+
+config BR2_KERNEL_HEADERS_4_9
+	bool "Linux 4.9.x kernel headers"
+	depends on !BR2_riscv
+	depends on !BR2_csky
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_9
+
+config BR2_KERNEL_HEADERS_4_14
+	bool "Linux 4.14.x kernel headers"
+	depends on !BR2_riscv
+	depends on !BR2_csky
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_14
+
+config BR2_KERNEL_HEADERS_4_19
+	bool "Linux 4.19.x kernel headers"
+	depends on !BR2_csky
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_19
+
+config BR2_KERNEL_HEADERS_5_4
+	bool "Linux 5.4.x kernel headers"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_4
+	select BR2_KERNEL_HEADERS_LATEST
+
+config BR2_KERNEL_HEADERS_5_5
+	bool "Linux 5.5.x kernel headers"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_5
+
+config BR2_KERNEL_HEADERS_5_6
+	bool "Linux 5.6.x kernel headers"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_6
+
+config BR2_KERNEL_HEADERS_VERSION
+	bool "Manually specified Linux version"
+	help
+	  This option allows you to use a specific official version from
+	  kernel.org, like 2.6.x, 2.6.x.y, 3.x.y, ...
+
+	  Note: you cannot use this option to select a _longterm_ 2.6
+	  kernel, because these kernels are not located at the standard
+	  URL at kernel.org. Instead, select "Custom tarball" and
+	  specify the right URL directly.
+
 endchoice
+
+# Select this for the latest kernel headers version (for license hashes)
+config BR2_KERNEL_HEADERS_LATEST
+	bool
 
 config BR2_DEFAULT_KERNEL_VERSION
 	string "linux version"
@@ -91,14 +135,112 @@ config BR2_DEFAULT_KERNEL_VERSION
 	  Specify the version you want to use.
 	  E.G.: 3.6.10
 
+config BR2_KERNEL_HEADERS_CUSTOM_TARBALL_LOCATION
+	string "URL of custom kernel tarball"
+	depends on BR2_KERNEL_HEADERS_CUSTOM_TARBALL
+
+if BR2_KERNEL_HEADERS_CUSTOM_GIT
+
+config BR2_KERNEL_HEADERS_CUSTOM_REPO_URL
+	string "URL of custom repository"
+
+config BR2_KERNEL_HEADERS_CUSTOM_REPO_VERSION
+	string "Custom repository version"
+	help
+	  Revision to use in the typical format used by
+	  Git/Mercurial/Subversion E.G. a sha id, a tag, branch, ..
+
+endif
+
 choice
 	bool "Custom kernel headers series"
-	depends on BR2_KERNEL_HEADERS_VERSION || BR2_KERNEL_HEADERS_AS_KERNEL
+	depends on BR2_KERNEL_HEADERS_VERSION || BR2_KERNEL_HEADERS_AS_KERNEL || \
+		   BR2_KERNEL_HEADERS_CUSTOM_TARBALL || BR2_KERNEL_HEADERS_CUSTOM_GIT
 	help
-	  Specify the kernel headers series you manually selected, above.
+	  Specify the kernel headers series you manually selected,
+	  above.
 
 	  This is used to hide/show some packages that have strict
 	  requirements on the version of kernel headers.
+
+	  If your kernel headers are more recent than the latest version
+	  in the choice, then select the latest version.
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_5_6
+	bool "5.6.x or later"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_6
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_5_5
+	bool "5.5.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_5
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_5_4
+	bool "5.4.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_4
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_5_3
+	bool "5.3.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_3
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_5_2
+	bool "5.2.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_2
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_5_1
+	bool "5.1.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_1
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_5_0
+	bool "5.0.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_5_0
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_20
+	bool "4.20.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_20
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_19
+	bool "4.19.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_19
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_18
+	bool "4.18.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_18
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_17
+	bool "4.17.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_17
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_16
+	bool "4.16.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_16
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_15
+	bool "4.15.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_15
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_14
+	bool "4.14.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_14
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_13
+	bool "4.13.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_13
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_12
+	bool "4.12.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_12
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_11
+	bool "4.11.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_11
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_10
+	bool "4.10.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_10
+
+config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_9
+	bool "4.9.x"
+	select BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_9
 
 config BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_4_8
 	bool "4.8.x"
@@ -237,4 +379,13 @@ config BR2_DEFAULT_KERNEL_HEADERS
 	default "4.6.7"		if BR2_KERNEL_HEADERS_4_6
 	default "4.7.10"	if BR2_KERNEL_HEADERS_4_7
 	default "4.8.11"	if BR2_KERNEL_HEADERS_4_8
+	default "4.9.224"	if BR2_KERNEL_HEADERS_4_9
+	default "4.14.181"	if BR2_KERNEL_HEADERS_4_14
+	default "4.19.124"	if BR2_KERNEL_HEADERS_4_19
+	default "5.4.42"	if BR2_KERNEL_HEADERS_5_4
+	default "5.5.19"	if BR2_KERNEL_HEADERS_5_5
+	default "5.6.14"	if BR2_KERNEL_HEADERS_5_6
 	default BR2_DEFAULT_KERNEL_VERSION if BR2_KERNEL_HEADERS_VERSION
+	default "custom"	if BR2_KERNEL_HEADERS_CUSTOM_TARBALL
+	default BR2_KERNEL_HEADERS_CUSTOM_REPO_VERSION \
+		if BR2_KERNEL_HEADERS_CUSTOM_GIT
