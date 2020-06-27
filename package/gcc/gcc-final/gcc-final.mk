@@ -8,6 +8,8 @@ GCC_FINAL_VERSION = $(GCC_VERSION)
 GCC_FINAL_SITE = $(GCC_SITE)
 GCC_FINAL_SOURCE = $(GCC_SOURCE)
 
+HOST_GCC_FINAL_DL_SUBDIR = gcc
+
 HOST_GCC_FINAL_DEPENDENCIES = \
 	$(HOST_GCC_COMMON_DEPENDENCIES) \
 	$(BR_LIBC)
@@ -54,6 +56,7 @@ endef
 # Languages supported by the cross-compiler
 GCC_FINAL_CROSS_LANGUAGES-y = c
 GCC_FINAL_CROSS_LANGUAGES-$(BR2_INSTALL_LIBSTDCPP) += c++
+GCC_FINAL_CROSS_LANGUAGES-$(BR2_TOOLCHAIN_BUILDROOT_DLANG) += d
 GCC_FINAL_CROSS_LANGUAGES-$(BR2_TOOLCHAIN_BUILDROOT_FORTRAN) += fortran
 GCC_FINAL_CROSS_LANGUAGES = $(subst $(space),$(comma),$(GCC_FINAL_CROSS_LANGUAGES-y))
 
@@ -78,10 +81,22 @@ ifeq ($(BR2_bfin),y)
 HOST_GCC_FINAL_CONF_OPTS += --disable-symvers
 endif
 
+# Pthreads are required to build libcilkrts
+ifeq ($(BR2_PTHREADS_NONE),y)
+HOST_GCC_FINAL_CONF_OPTS += --disable-libcilkrts
+endif
+
+ifeq ($(BR2_STATIC_LIBS),y)
+# disable libcilkrts as there is no static version
+HOST_GCC_FINAL_CONF_OPTS += --disable-libcilkrts
+endif
+
+endif # BR2_GCC_SUPPORTS_LIBCILKRTS
+
 # Disable shared libs like libstdc++ if we do static since it confuses linking
 # In that case also disable libcilkrts as there is no static version
 ifeq ($(BR2_STATIC_LIBS),y)
-HOST_GCC_FINAL_CONF_OPTS += --disable-shared --disable-libcilkrts
+HOST_GCC_FINAL_CONF_OPTS += --disable-shared
 else
 HOST_GCC_FINAL_CONF_OPTS += --enable-shared
 endif
@@ -153,6 +168,10 @@ HOST_GCC_FINAL_USR_LIBS =
 
 ifeq ($(BR2_INSTALL_LIBSTDCPP),y)
 HOST_GCC_FINAL_USR_LIBS += libstdc++
+endif
+
+ifeq ($(BR2_TOOLCHAIN_BUILDROOT_DLANG),y)
+HOST_GCC_FINAL_USR_LIBS += libgdruntime libgphobos
 endif
 
 ifeq ($(BR2_TOOLCHAIN_BUILDROOT_FORTRAN),y)
