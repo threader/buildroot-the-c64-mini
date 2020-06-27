@@ -802,3 +802,4 @@ endef
 
 $(eval $(generic-package))
 
+include $(sort $(wildcard toolchain/toolchain-external/*/*.mk))
