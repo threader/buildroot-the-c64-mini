@@ -9,7 +9,7 @@
 BINUTILS_VERSION = $(call qstrip,$(BR2_BINUTILS_VERSION))
 ifeq ($(BINUTILS_VERSION),)
 ifeq ($(BR2_arc),y)
-BINUTILS_VERSION = arc-2016.09-rc1
+BINUTILS_VERSION = arc-2019.09-release
 else
 BINUTILS_VERSION = 2.25.1
 endif
@@ -117,6 +117,7 @@ endef
 ifneq ($(BR2_PACKAGE_BINUTILS_TARGET),y)
 define BINUTILS_INSTALL_TARGET_CMDS
 	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D)/bfd DESTDIR=$(TARGET_DIR) install
+	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D)/opcodes DESTDIR=$(TARGET_DIR) install
 	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D)/libiberty DESTDIR=$(STAGING_DIR) install
 endef
 endif
@@ -134,6 +135,19 @@ endif
 ifeq ($(BR2_BINUTILS_ENABLE_LTO),y)
 HOST_BINUTILS_CONF_OPTS += --enable-plugins --enable-lto
 endif
+
+# Hardlinks between binaries in different directories cause a problem
+# with rpath fixup, so we de-hardlink those binaries, and replace them
+# with copies instead.
+BINUTILS_TOOLS = ar as ld ld.bfd nm objcopy objdump ranlib readelf strip
+define HOST_BINUTILS_FIXUP_HARDLINKS
+	$(foreach tool,$(BINUTILS_TOOLS),\
+		rm -f $(HOST_DIR)/$(GNU_TARGET_NAME)/bin/$(tool) && \
+		cp -a $(HOST_DIR)/bin/$(GNU_TARGET_NAME)-$(tool) \
+			$(HOST_DIR)/$(GNU_TARGET_NAME)/bin/$(tool)
+	)
+endef
+HOST_BINUTILS_POST_INSTALL_HOOKS += HOST_BINUTILS_FIXUP_HARDLINKS
 
 $(eval $(autotools-package))
 $(eval $(host-autotools-package))
