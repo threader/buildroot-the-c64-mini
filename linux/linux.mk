@@ -30,6 +30,10 @@ LINUX_SITE_METHOD = hg
 else ifeq ($(BR2_LINUX_KERNEL_CUSTOM_SVN),y)
 LINUX_SITE = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_REPO_URL))
 LINUX_SITE_METHOD = svn
+else ifneq ($(findstring -rc,$(LINUX_VERSION)),)
+# Since 4.12-rc1, -rc kernels are generated from cgit. This also works for
+# older -rc kernels.
+LINUX_SITE = https://git.kernel.org/torvalds/t
 else
 LINUX_SOURCE = linux-$(LINUX_VERSION).tar.xz
 ifeq ($(BR2_LINUX_KERNEL_CUSTOM_VERSION),y)
@@ -44,6 +48,8 @@ else ifeq ($(findstring x3.,x$(LINUX_VERSION)),x3.)
 LINUX_SITE = $(BR2_KERNEL_MIRROR)/linux/kernel/v3.x
 else ifeq ($(findstring x4.,x$(LINUX_VERSION)),x4.)
 LINUX_SITE = $(BR2_KERNEL_MIRROR)/linux/kernel/v4.x
+else
+LINUX_SITE = $(BR2_KERNEL_MIRROR)/linux/kernel/v$(firstword $(subst ., ,$(LINUX_VERSION))).x
 endif
 # release candidates are in testing/ subdir
 ifneq ($(findstring -rc,$(LINUX_VERSION)),)
@@ -53,11 +59,22 @@ endif
 
 LINUX_PATCHES = $(call qstrip,$(BR2_LINUX_KERNEL_PATCH))
 
+# We have no way to know the hashes for user-supplied patches.
+BR_NO_CHECK_HASH_FOR += $(notdir $(LINUX_PATCHES))
+
 # We rely on the generic package infrastructure to download and apply
 # remote patches (downloaded from ftp, http or https). For local
 # patches, we can't rely on that infrastructure, because there might
 # be directories in the patch list (unlike for other packages).
 LINUX_PATCH = $(filter ftp://% http://% https://%,$(LINUX_PATCHES))
+
+# while the kernel is built for the target, the build may need various
+# host libraries depending on config (and version), so use
+# HOST_MAKE_ENV here. In particular, this ensures that our
+# host-pkgconf will look for host libraries and not target ones.
+LINUX_MAKE_ENV = \
+	$(HOST_MAKE_ENV) \
+	BR_BINARIES_DIR=$(BINARIES_DIR)
 
 LINUX_INSTALL_IMAGES = YES
 LINUX_DEPENDENCIES += host-kmod
@@ -72,11 +89,19 @@ LINUX_DEPENDENCIES += host-lzop
 else ifeq ($(BR2_LINUX_KERNEL_XZ),y)
 LINUX_DEPENDENCIES += host-xz
 endif
-LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_GZIP) = CONFIG_KERNEL_GZIP
-LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_LZ4) = CONFIG_KERNEL_LZ4
-LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_LZMA) = CONFIG_KERNEL_LZMA
-LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_LZO) = CONFIG_KERNEL_LZO
-LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_XZ) = CONFIG_KERNEL_XZ
+LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_GZIP) += CONFIG_KERNEL_GZIP
+LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_LZ4) += CONFIG_KERNEL_LZ4
+LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_LZMA) += CONFIG_KERNEL_LZMA
+LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_LZO) += CONFIG_KERNEL_LZO
+LINUX_COMPRESSION_OPT_$(BR2_LINUX_KERNEL_XZ) += CONFIG_KERNEL_XZ
+
+ifeq ($(BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL),y)
+LINUX_DEPENDENCIES += host-openssl
+endif
+
+ifeq ($(BR2_LINUX_KERNEL_NEEDS_HOST_LIBELF),y)
+LINUX_DEPENDENCIES += host-elfutils host-pkgconf
+endif
 
 ifeq ($(BR2_LINUX_KERNEL_UBOOT_IMAGE),y)
 LINUX_DEPENDENCIES += host-uboot-tools
@@ -90,9 +115,23 @@ LINUX_MAKE_FLAGS = \
 	CROSS_COMPILE="$(TARGET_CROSS)" \
 	DEPMOD=$(HOST_DIR)/sbin/depmod
 
-LINUX_MAKE_ENV = \
-	$(TARGET_MAKE_ENV) \
-	BR_BINARIES_DIR=$(BINARIES_DIR)
+ifeq ($(BR2_REPRODUCIBLE),y)
+LINUX_MAKE_ENV += \
+	KBUILD_BUILD_VERSION=1 \
+	KBUILD_BUILD_USER=buildroot \
+	KBUILD_BUILD_HOST=buildroot \
+	KBUILD_BUILD_TIMESTAMP="$(shell LC_ALL=C date -d @$(SOURCE_DATE_EPOCH))"
+endif
+
+# gcc-8 started warning about function aliases that have a
+# non-matching prototype.  This seems rather useful in general, but it
+# causes tons of warnings in the Linux kernel, where we rely on
+# abusing those aliases for system call entry points, in order to
+# sanitize the arguments passed from user space in registers.
+# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=82435
+ifeq ($(BR2_TOOLCHAIN_GCC_AT_LEAST_8),y)
+LINUX_MAKE_ENV += KCFLAGS=-Wno-attribute-alias
+endif
 
 # Get the real Linux version, which tells us where kernel modules are
 # going to be installed in the target filesystem.
@@ -201,6 +240,17 @@ define LINUX_TRY_PATCH_TIMECONST
 endef
 LINUX_POST_PATCH_HOOKS += LINUX_TRY_PATCH_TIMECONST
 
+LINUX_KERNEL_CUSTOM_LOGO_PATH = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_LOGO_PATH))
+ifneq ($(LINUX_KERNEL_CUSTOM_LOGO_PATH),)
+LINUX_DEPENDENCIES += host-imagemagick
+define LINUX_KERNEL_CUSTOM_LOGO_CONVERT
+	$(HOST_DIR)/bin/convert $(LINUX_KERNEL_CUSTOM_LOGO_PATH) \
+		-dither None -colors 224 -compress none \
+		$(LINUX_DIR)/drivers/video/logo/logo_linux_clut224.ppm
+endef
+LINUX_PRE_BUILD_HOOKS += LINUX_KERNEL_CUSTOM_LOGO_CONVERT
+endif
+
 ifeq ($(BR2_LINUX_KERNEL_USE_DEFCONFIG),y)
 LINUX_KCONFIG_DEFCONFIG = $(call qstrip,$(BR2_LINUX_KERNEL_DEFCONFIG))_defconfig
 else ifeq ($(BR2_LINUX_KERNEL_USE_ARCH_DEFAULT_CONFIG),y)
@@ -210,7 +260,17 @@ LINUX_KCONFIG_FILE = $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE))
 endif
 LINUX_KCONFIG_FRAGMENT_FILES = $(call qstrip,$(BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES))
 LINUX_KCONFIG_EDITORS = menuconfig xconfig gconfig nconfig
-LINUX_KCONFIG_OPTS = $(LINUX_MAKE_FLAGS)
+
+# LINUX_MAKE_FLAGS overrides HOSTCC to allow the kernel build to find
+# our host-openssl and host-libelf. However, this triggers a bug in
+# the kconfig build script that causes it to build with
+# /usr/include/ncurses.h (which is typically wchar) but link with
+# $(HOST_DIR)/lib/libncurses.so (which is not).  We don't actually
+# need any host-package for kconfig, so remove the HOSTCC override
+# again. In addition, even though linux depends on the toolchain and
+# therefore host-ccache would be ready, we use HOSTCC_NOCCACHE for
+# consistency with other kconfig packages.
+LINUX_KCONFIG_OPTS = $(LINUX_MAKE_FLAGS) HOSTCC="$(HOSTCC_NOCCACHE)"
 
 # If no package has yet set it, set it from the Kconfig option
 LINUX_NEEDS_MODULES ?= $(BR2_LINUX_NEEDS_MODULES)
@@ -392,24 +452,43 @@ define LINUX_INSTALL_TARGET_CMDS
 	$(LINUX_INSTALL_KERNEL_IMAGE_TO_TARGET)
 	# Install modules and remove symbolic links pointing to build
 	# directories, not relevant on the target
-	@if grep -q "CONFIG_MODULES=y" $(@D)/.config; then 	\
+	@if grep -q "CONFIG_MODULES=y" $(@D)/.config; then \
 		$(LINUX_MAKE_ENV) $(MAKE1) $(LINUX_MAKE_FLAGS) -C $(@D) modules_install; \
-		rm -f $(TARGET_DIR)/lib/modules/$(LINUX_VERSION_PROBED)/build ;		\
-		rm -f $(TARGET_DIR)/lib/modules/$(LINUX_VERSION_PROBED)/source ;	\
+		rm -f $(TARGET_DIR)/lib/modules/$(LINUX_VERSION_PROBED)/build ; \
+		rm -f $(TARGET_DIR)/lib/modules/$(LINUX_VERSION_PROBED)/source ; \
 	fi
 	$(LINUX_INSTALL_HOST_TOOLS)
 endef
+
+# Run depmod in a target-finalize hook, to encompass modules installed by
+# packages.
+define LINUX_RUN_DEPMOD
+	if grep -q "CONFIG_MODULES=y" $(LINUX_DIR)/.config; then \
+		$(HOST_DIR)/sbin/depmod -a -b $(TARGET_DIR) $(LINUX_VERSION_PROBED); \
+	fi
+endef
+LINUX_TARGET_FINALIZE_HOOKS += LINUX_RUN_DEPMOD
 
 # Include all our extensions.
 #
 # Note: our package infrastructure uses the full-path of the last-scanned
 # Makefile to determine what package we're currently defining, using the
-# last directory component in the path. As such, including other Makefile,
-# like below, before we call one of the *-package macro is usally not
-# working.
-# However, since the files we include here are in the same directory as
-# the current Makefile, we are OK. But this is a hard requirement: files
-# included here *must* be in the same directory!
+# last directory component in the path. Additionally, the full path of
+# the package directory is also stored in _PKGDIR (e.g. to find patches)
+#
+# As such, including other Makefiles, like below, before we call one of
+# the *-package macros usually doesn't work.
+#
+# However, by including the in-tree extensions after the ones from the
+# br2-external trees, we're back to the situation where the last Makefile
+# scanned *is* included from the correct directory.
+#
+# NOTE: this is very fragile, and extra care must be taken to ensure that
+# we always end up with an in-tree included file. That's mostly OK, because
+# we do have in-tree linux-extensions.
+#
+include $(sort $(wildcard $(foreach ext,$(BR2_EXTERNAL_DIRS), \
+	$(ext)/linux/linux-ext-*.mk)))
 include $(sort $(wildcard linux/linux-ext-*.mk))
 
 LINUX_PATCH_DEPENDENCIES += $(foreach ext,$(LINUX_EXTENSIONS),\
@@ -420,6 +499,17 @@ LINUX_PRE_PATCH_HOOKS += $(foreach ext,$(LINUX_EXTENSIONS),\
 		$(call UPPERCASE,$(ext))_PREPARE_KERNEL))
 
 # Checks to give errors that the user can understand
+
+# When a custom repository has been set, check for the repository version
+ifeq ($(BR2_LINUX_KERNEL_CUSTOM_SVN)$(BR2_LINUX_KERNEL_CUSTOM_GIT)$(BR2_LINUX_KERNEL_CUSTOM_HG),y)
+ifeq ($(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION)),)
+$(error No custom repository version set. Check your BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION setting)
+endif
+ifeq ($(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_REPO_URL)),)
+$(error No custom repo URL set. Check your BR2_LINUX_KERNEL_CUSTOM_REPO_URL setting)
+endif
+endif
+
 ifeq ($(BR_BUILDING),y)
 
 ifeq ($(BR2_LINUX_KERNEL_USE_DEFCONFIG),y)
