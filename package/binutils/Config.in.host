@@ -25,6 +25,7 @@ choice
 
 	config BR2_BINUTILS_VERSION_2_27_X
 		bool "binutils 2.27"
+
 config BR2_BINUTILS_VERSION_2_31_X
 	bool "binutils 2.31.1"
 	depends on !BR2_csky
