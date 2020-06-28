@@ -81,6 +81,13 @@ ifeq ($(BR2_bfin),y)
 HOST_GCC_FINAL_CONF_OPTS += --disable-symvers
 endif
 
+ifeq ($(BR2_GCC_SUPPORTS_LIBCILKRTS),y)
+
+# libcilkrts does not support v8
+ifeq ($(BR2_sparc),y)
+HOST_GCC_FINAL_CONF_OPTS += --disable-libcilkrts
+endif
+
 # Pthreads are required to build libcilkrts
 ifeq ($(BR2_PTHREADS_NONE),y)
 HOST_GCC_FINAL_CONF_OPTS += --disable-libcilkrts
